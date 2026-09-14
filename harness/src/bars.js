@@ -4,6 +4,7 @@ import { MINUTE } from "./data.js";
 /**
  * Split a 1m series into contiguous "live" segments.
  *
+ * - A seam break larger than `seamLimit` ends a segment (see integrity.js).
  * - Any missing minute ends a segment. An expiry must settle against the
  *   genuinely next minutes, never across a gap.
  * - A run of `maxDeadRun` or more frozen bars (high == low) ends a segment
@@ -12,7 +13,7 @@ import { MINUTE } from "./data.js";
  *   every result toward the null.
  * - Segments shorter than `minLen` are dropped.
  */
-export function liveSegments(candles, { maxDeadRun = 10, minLen = 50 } = {}) {
+export function liveSegments(candles, { maxDeadRun = 10, minLen = 50, seamLimit = Infinity } = {}) {
   const segs = [];
   let cur = [];
   let deadRun = 0;
@@ -24,6 +25,9 @@ export function liveSegments(candles, { maxDeadRun = 10, minLen = 50 } = {}) {
   for (let i = 0; i < candles.length; i++) {
     const c = candles[i];
     if (cur.length && c.time - cur[cur.length - 1].time !== MINUTE) { close(); deadRun = 0; }
+    // A seam break (bar opens away from the previous close) also ends a
+    // segment: a trade must never settle across a price discontinuity.
+    else if (cur.length && Math.abs(Math.log(c.open / cur[cur.length - 1].close)) > seamLimit) { close(); deadRun = 0; }
     const dead = c.high === c.low;
     deadRun = dead ? deadRun + 1 : 0;
     cur.push(c);

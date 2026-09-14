@@ -7,6 +7,7 @@
 //   node harness/bin/qx.js nulls     <dataset.json> [--expiry 1,5,15] [--payout 0.85]
 //   node harness/bin/qx.js run       <hypothesis.js> <dataset.json> [--expiry 5] [--payout 0.85] [--holdout]
 import { fileURLToPath } from "node:url";
+import { existsSync, readFileSync } from "node:fs";
 import { loadDataset } from "../src/data.js";
 import { checkDataset } from "../src/integrity.js";
 import { runHypothesis, summarizeGroup, checkNoLookahead } from "../src/engine.js";
@@ -18,6 +19,9 @@ import { breakEven, evPerTrade, requiredN, nToProve, holm, ALPHA } from "../src/
 import { table, pct, signedPct, resultColumns } from "../src/report.js";
 
 const LEDGER = fileURLToPath(new URL("../../research/holdout-ledger.jsonl", import.meta.url));
+const GAPS_FILE = fileURLToPath(new URL("../../research/verified-gaps.json", import.meta.url));
+// Seam breaks the owner has checked on the platform chart. See research/verified-gaps.json.
+const VERIFIED_GAPS = existsSync(GAPS_FILE) ? JSON.parse(readFileSync(GAPS_FILE, "utf8")) : [];
 
 function parseArgs(argv) {
   const pos = [], flags = {};
@@ -42,7 +46,7 @@ function die(msg) {
 }
 
 function screenData(ds, flags) {
-  const rep = checkDataset(ds);
+  const rep = checkDataset(ds, { verifiedGaps: VERIFIED_GAPS });
   const include = new Set(flags["include-failing"] ? ds.series.map(s => s.key) : rep.passing);
   if (rep.failing.length) {
     console.log(`Integrity: ${rep.failing.length} series FAILED and are excluded${flags["include-failing"] ? " — OVERRIDDEN by --include-failing" : ""}: ${rep.failing.join(", ")}`);
@@ -85,7 +89,7 @@ const commands = {
       console.log("Nothing was captured. Open the extension popup on the Quotex tab — its status line names the stage that is empty.");
       process.exit(1);
     }
-    const rep = checkDataset(ds);
+    const rep = checkDataset(ds, { verifiedGaps: VERIFIED_GAPS });
     console.log(`Dataset ${pos[0]}  sha256 ${ds.hash.slice(0, 16)}  exported ${ds.exportedAt || "?"}\n`);
     console.log(table(rep.perSeries, [
       { label: "Series", key: "key" },

@@ -2,7 +2,51 @@
 
 | Version | Tag | Milestone | Status |
 | :--- | :--- | :--- | :--- |
-| **v0.1.0** | `v0.1.0-frozen` (pending) | Phase 0 harness: capture, integrity, settlement, stats, planted-edge selftest | Harness verified on synthetic data; **awaiting a real capture that passes integrity** |
+| **v0.1.3** | `v0.1.3-frozen` (pending owner approval) | Phase 0 harness complete: selftest 21/21, real capture 9/9 integrity, two captures agree 99.99% | Exit criterion met |
+
+## v0.1.3 — second capture: Phase 0 exit criterion met
+
+**The capture:** `qx_capture_20260914T1929.json` (sha256 `23bd8f5c7f0bc012…`),
+taken with v0.1.2: 9 OTC series, 10,000–11,224 bars each, about 167–187 hours.
+**Integrity: 9 of 9 pass.** Frames: 1,849 of 1,849 kept, none dropped, and no
+gaps in any series. The v0.1.2 merge fix recovered every page v0.1.1 had
+thrown away.
+
+**The two captures agree.** On the minutes both captures contain, 99.99% of
+bars have identical OHLC in all 9 series. Each series differs in exactly one
+bar, near the end of the first export, consistent with that bar still
+forming when it was exported. This checks attribution and merging on the real
+feed, which the selftest cannot do. It also shows the broker does not
+regenerate OTC history between loads.
+
+### Naming, settled with evidence
+
+The owner's screenshot of the platform lists USD/MXN, USD/BDT, NZD/CHF,
+USD/IDR, GBP/NZD and USD/PHP. The feed spells every one of them that way.
+The names that looked wrong were an artifact of **v0.1.0 filing series under
+an alphabetical key**, not a feed quirk. The export's `symbol` field always
+held the true spelling, so the harness now names series from `symbol`, and
+the first export loads with correct names too. `BRLUSD_otc → USD/BRL (OTC)`
+remains the only rename, because both captures really do receive `BRLUSD_otc`.
+
+### USD/PHP (OTC) seam break: a genuine broker gap
+
+At 09-13 06:10, the price goes from a 62.115 close to a 62.667 open (+0.89%).
+The owner confirmed it on the platform chart, and it is identical in both
+captures. It is recorded with that evidence in `research/verified-gaps.json`.
+
+- A seam break still **fails** a series by default. Only a listed break, for
+  that series at that exact minute, becomes the `verified_gap` warning.
+- `liveSegments` now splits a series at every seam break, so no trade can
+  settle across a price jump. The limit is computed from the whole series, so
+  train and holdout split at the same bars.
+
+### Still open
+- Storage quota: one tab still hit `Session storage quota bytes exceeded`.
+  Export from the live tab works. Export before closing the tab.
+- Payout is still an assumption (`--payout`).
+
+Tests: 30/30 pass; selftest 21/21.
 
 ## v0.1.2 — first real capture: seams, shocks, naming
 

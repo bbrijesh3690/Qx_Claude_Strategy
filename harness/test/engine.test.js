@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { makeDataset } from "../src/data.js";
+import { makeDataset, fromCapture } from "../src/data.js";
+import { checkDataset } from "../src/integrity.js";
 import { runHypothesis, summarizeGroup, BarView, LookaheadError } from "../src/engine.js";
 import { liveSegments, settle } from "../src/bars.js";
 import { computeCutoff, trainWindow, holdoutWindow, claimHoldoutLook, readLedger } from "../src/split.js";
@@ -67,6 +68,37 @@ test("a train run never sees a holdout bar, even as warmup or settlement", () =>
   const spy2 = hyp(view => { minSeen = Math.min(minSeen, view.at(0).time); return null; });
   runHypothesis(spy2, ds, { expiry: 1, window: holdoutWindow(cutoff) });
   assert.ok(minSeen >= cutoff);
+});
+
+test("a seam break splits the series; a verified one warns instead of failing", () => {
+  const a = randomWalk({ bars: 400, start: 62.1, vol: 0.0002, seed: 31 });
+  const b = randomWalk({ bars: 400, start: 62.1, vol: 0.0002, seed: 32, startTime: a[399].time + M });
+  const f = (a[399].close * 1.0089) / b[0].open; // USD/PHP (OTC) 09-13 06:10: +0.89% at the open
+  const candles = a.concat(b.map(c => ({ time: c.time, open: c.open * f, high: c.high * f, low: c.low * f, close: c.close * f })));
+  const ds = makeDataset([{ symbol: "USDPHP_otc", candles }]);
+  const gapTime = new Date(b[0].time).toISOString();
+
+  assert.equal(checkDataset(ds).perSeries[0].status, "fail");
+  const ok = checkDataset(ds, { verifiedGaps: [{ key: "USDPHP_otc", time: gapTime }] }).perSeries[0];
+  assert.equal(ok.status, "warn");
+  assert.ok(ok.issues.some(i => i.code === "verified_gap"));
+  // a verified gap for another series or another minute does not excuse this one
+  assert.equal(checkDataset(ds, { verifiedGaps: [{ key: "USDIDR_otc", time: gapTime }] }).perSeries[0].status, "fail");
+
+  const { trades, perSeries } = runHypothesis(hyp(() => "CALL"), ds, { expiry: 5 });
+  assert.equal(perSeries[0].segments, 2);
+  for (const t of trades) assert.ok(!(t.time < b[0].time && t.time + 5 * M >= b[0].time), "no trade settles across the gap");
+});
+
+test("series are named from the feed symbol, not the stored key", () => {
+  const ds = fromCapture({
+    format: "qx-capture", formatVersion: 1,
+    series: {
+      PHPUSD_otc: { symbol: "USDPHP_otc", otc: true, matchMode: "symbol", candles: [] },
+      BRLUSD_otc: { symbol: "BRLUSD_otc", otc: true, matchMode: "symbol", candles: [] }
+    }
+  });
+  assert.deepEqual(ds.series.map(s => [s.key, s.name]), [["USDBRL_otc", "USD/BRL (OTC)"], ["USDPHP_otc", "USD/PHP (OTC)"]]);
 });
 
 test("decide must return CALL, PUT or null", () => {

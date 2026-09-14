@@ -1,0 +1,10 @@
+[
+  {
+    "key": "USDPHP_otc",
+    "time": "2026-09-13T06:10:00.000Z",
+    "move": "62.115 close -> 62.667 open (+0.89%)",
+    "evidence": "Owner's screenshot of the platform's USD/PHP (OTC) 1m chart shows the gap. Identical bar in captures qx_capture_20260914T1829 and qx_capture_20260914T1929, so it is not a capture artifact.",
+    "verifiedBy": "owner",
+    "verifiedAt": "2026-09-15"
+  }
+]

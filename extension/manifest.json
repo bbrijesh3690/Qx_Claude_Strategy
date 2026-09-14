@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "QX Capture",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Read-only, local-only capture of symbol-attributed 1m candle history for offline research.",
   "permissions": ["storage"],
   "background": { "service_worker": "background.js" },

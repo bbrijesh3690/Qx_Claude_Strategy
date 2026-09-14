@@ -68,15 +68,20 @@ export function checkSeries(s, opts = {}) {
   const med = medianAbsLogReturn(c);
   const limit = core.seamLimit(c);
   const shockLimit = Math.max(jumpFloor, med * jumpMultiple);
-  const jumps = [], shocks = [];
+  // A seam break the owner has checked against the platform chart is a
+  // genuine gap in the broker's feed, not a splice: it is reported, and the
+  // series is split there (bars.liveSegments), instead of failing.
+  const verified = new Set((opts.verifiedGaps || []).filter(g => g.key === s.key).map(g => Date.parse(g.time)));
+  const jumps = [], shocks = [], gapsOk = [];
   for (let i = 1; i < c.length; i++) {
     if (c[i].time - c[i - 1].time !== MINUTE) continue;
     const seam = Math.abs(Math.log(c[i].open / c[i - 1].close));
     const body = Math.abs(Math.log(c[i].close / c[i - 1].close));
-    if (seam > limit) jumps.push({ time: c[i].time, move: Number(seam.toFixed(5)) });
+    if (seam > limit) (verified.has(c[i].time) ? gapsOk : jumps).push({ time: c[i].time, move: Number(seam.toFixed(5)) });
     else if (body > shockLimit) shocks.push({ time: c[i].time, move: Number(body.toFixed(5)) });
   }
   if (jumps.length) add(FAIL, "seam_break", `${jumps.length} bars open > ${(limit * 100).toFixed(2)}% from the previous close (first at ${new Date(jumps[0].time).toISOString()}, ${(jumps[0].move * 100).toFixed(2)}%)`);
+  if (gapsOk.length) add(WARN, "verified_gap", `${gapsOk.length} seam break(s) verified on the platform chart; series split there (${gapsOk.map(g => `${new Date(g.time).toISOString().slice(0, 16)} ${(g.move * 100).toFixed(2)}%`).join(", ")})`);
   if (shocks.length) add(WARN, "shock_bars", `${shocks.length} continuous one-minute moves > ${(shockLimit * 100).toFixed(2)}%, largest ${(Math.max(...shocks.map(s => s.move)) * 100).toFixed(2)}%`);
 
   const frozenShare = c.length ? frozen / c.length : 0;

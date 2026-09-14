@@ -28,9 +28,11 @@ export function fromCapture(raw) {
   const series = [];
   const seen = new Map();
   for (const [storedKey, s] of Object.entries(raw.series || {})) {
-    // Exports from before v0.1.2 keyed pairs alphabetically (BRLUSD_otc);
-    // re-key by convention (USDBRL_otc) so every file reads the same way.
-    const key = core.canonicalKey(storedKey);
+    // Name from the feed's own spelling, which every export records in
+    // `symbol`. Exports before v0.1.2 KEYED series alphabetically (PHPUSD_otc
+    // for a feed symbol USDPHP_otc, listed on the platform as USD/PHP), so the
+    // stored key cannot be trusted as a name.
+    const key = core.canonicalKey(s.symbol || storedKey);
     if (seen.has(key)) throw new Error(`Series ${storedKey} and ${seen.get(key)} are the same instrument (${key}); the export is inconsistent.`);
     seen.set(key, storedKey);
     const candles = (s.candles || []).map(([time, open, high, low, close]) => Object.freeze({ time, open, high, low, close }));

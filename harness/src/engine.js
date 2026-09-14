@@ -11,7 +11,10 @@
 // 3. NO WINDOW LEAK. Bars outside the requested time window are removed
 //    BEFORE segmentation, so a train run cannot see a holdout bar even as
 //    warmup or as a settlement bar.
+import { createRequire } from "node:module";
 import { liveSegments, settle, resultFor } from "./bars.js";
+
+const core = createRequire(import.meta.url)("../../extension/core.js");
 import { wilson, breakEven, evPerTrade, binomUpperTail } from "./stats.js";
 
 export class LookaheadError extends Error {}
@@ -45,8 +48,10 @@ export function marketAllows(market, otc) {
   return market === "otc" ? otc : !otc;
 }
 
+// The seam limit comes from the WHOLE series, so a train and a holdout run
+// split at exactly the same bars.
 export function prepareSegments(series, window, segOpts) {
-  return liveSegments(inWindow(series.candles, window), segOpts);
+  return liveSegments(inWindow(series.candles, window), { seamLimit: core.seamLimit(series.candles), ...segOpts });
 }
 
 export function runHypothesis(hyp, ds, { expiry, window = null, include = null, segOpts } = {}) {
