@@ -22,7 +22,7 @@ These cost no budget. They are recorded so the source's full list is on file.
 
 | Id | Source | Decision | Reason |
 | :--- | :--- | :--- | :--- |
-| h002-flat-extreme-reflect | Fable 5.1 | Deferred | Only 53 trades on the train window, below the screen size. Its prior (10–15% that clipping exists) is low. Revisit with a longer capture. |
+| h002-flat-extreme-reflect | Fable 5.1 | **Dropped** (2026-09-15) | It was deferred at first (53 train trades). The source then set a no-budget test in advance: touches pinned to 0–1 tick would mean a clip; spread across the band would mean drop it. **0 of 53 fires were pinned**; spreads fill the 0.5σ band on every asset. See `ROUND2_MEASUREMENTS.md`. |
 | h003-impulse-fade-1m | Fable 5.1 | Not registered | The source's own pre-registered condition was to register only if lag-1 autocorrelation had magnitude ≥ 0.05. Measured −0.011 to +0.013 on all 9 assets (random-walk sd ≈ 0.012). |
 | h004-impulse-follow-1m | Fable 5.1 | Not registered | Same condition as h003, opposite sign. |
 
