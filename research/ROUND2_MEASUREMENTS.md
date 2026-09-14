@@ -94,3 +94,37 @@ modest, and not why h002 fires so rarely.
 The source recommends stopping if (i), (ii) and (iii) all come back "no".
 Two structures are now ruled out and (ii) is "no". The last open question is
 (i)/(iii).
+
+## Independent replication by Fable 5.1 (round 3)
+
+Fable received the raw captures and a prompt without our results, with
+tests restricted to bars before the cutoff
+(`prompts/phase2-round3-response.md`). Its code was written from scratch.
+
+| Measurement | Ours | Fable's | Match |
+| :--- | :--- | :--- | :--- |
+| Two captures agree | 99.99% over the whole overlap; the one differing bar per series is after the cutoff | 100.0% before the cutoff | ✓ consistent |
+| h001 trades | 106, 43 W | 106, 43 W | ✓ |
+| h001 excursions | 31; first-trade 13/31 = 41.9% [26.4–59.2] | 31; 13/31 = 41.9% [26.4–59.2] | ✓ |
+| h001 by direction | CALL 28/66, PUT 15/40 | CALL 28/66, PUT 15/40 | ✓ |
+| h002 fires | 53 | 53 | ✓ |
+| h002 pinned ≤ 1 tick | 0 of 53 | 0 of 53 | ✓ |
+| h002 spreads per asset | e.g. USD/PHP 6–10 ticks, band 10 | USD/PHP 6–10, band 10 | ✓ (every asset) |
+| 8σ guard nulls (360) | 9.6% | 9.6% | ✓ |
+| Shocks | the same 11, with the same times, sizes and signs | the same 11 | ✓ |
+| Quarter-hour / same minute | 1 (0.7 expected) / 0 | 1 (0.73, p = 0.53) / 0 | ✓ |
+
+Two different implementations produced identical numbers. The input and the
+analysis have now both been checked independently, which is the lesson from
+the old project's first verdict.
+
+**One correction to the response:** it says there are "two Saturday shocks
+(09-12)". 2026-09-12 was a Saturday, and **three** shocks fall on it (USD/BRL
+02:00, USD/IDR 05:09, NZD/USD 06:52). With real FX closed, all three can't be
+compared against a real rate. That leaves 8 shocks that can be, and 4 of
+those are on NZD pairs the platform may list as non-OTC.
+
+**New observation, post hoc and flagged as such by the source:** widening the
+definition to 8×–15× the median gives about 19 jumps, and 3 of them land exactly on
+minute :00. It carries no direction. It is pre-registered below as a timing
+check for the next capture, not as a finding.
