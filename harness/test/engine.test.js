@@ -9,6 +9,7 @@ import { runHypothesis, summarizeGroup, BarView, LookaheadError } from "../src/e
 import { liveSegments, settle } from "../src/bars.js";
 import { computeCutoff, trainWindow, holdoutWindow, claimHoldoutLook, readLedger } from "../src/split.js";
 import { lintSource, loadHypothesis } from "../src/hypothesis.js";
+import { recordRun, readRegistry, assertNotModified } from "../src/registry.js";
 import { randomWalk } from "../src/synthetic.js";
 import { runSelftest } from "../src/selftest.js";
 
@@ -136,6 +137,28 @@ test("holdout: one look per hypothesis id, recorded before results", () => {
     assert.throws(() => claimHoldoutLook(path, { hypothesisId: "h001", sourceHash: "c".repeat(64), datasetHash: "d", cutoff: 2 }), /already used/);
     claimHoldoutLook(path, { hypothesisId: "h002", sourceHash: "e".repeat(64), datasetHash: "f", cutoff: 1 });
     assert.equal(readLedger(path).length, 2);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("registry: screened hypotheses are frozen, and Holm covers every hypothesis ever run", () => {
+  const dir = mkdtempSync(join(tmpdir(), "qx-registry-"));
+  try {
+    const path = join(dir, "registry.jsonl");
+    const cell = (name, p) => ({ cell: name, decided: 100, wins: 55, pValue: p, datasetHash: "d1" });
+    let fam = recordRun(path, { hypothesisId: "h001", sourceHash: "a".repeat(64), cells: [cell("15m · OTC", 0.01)] });
+    assert.equal(fam.length, 1);
+    fam = recordRun(path, { hypothesisId: "h002", sourceHash: "b".repeat(64), cells: [cell("15m · OTC", 0.3)] });
+    assert.equal(fam.length, 2, "the second hypothesis is corrected against the first");
+    // same id and source again (e.g. a bigger capture): replaces, not a new test
+    fam = recordRun(path, { hypothesisId: "h001", sourceHash: "a".repeat(64), cells: [cell("15m · OTC", 0.02)] });
+    assert.equal(fam.length, 2);
+    assert.equal(fam.find(c => c.hypothesisId === "h001").pValue, 0.02);
+    // edited after screening: refused
+    assert.throws(() => recordRun(path, { hypothesisId: "h001", sourceHash: "c".repeat(64), cells: [] }), /frozen/);
+    assert.throws(() => assertNotModified(path, "h002", "z".repeat(64)), /frozen/);
+    assert.equal(readRegistry(path).length, 2);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

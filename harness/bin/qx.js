@@ -15,12 +15,18 @@ import { computeCutoff, trainWindow, holdoutWindow, claimHoldoutLook } from "../
 import { loadHypothesis } from "../src/hypothesis.js";
 import { runNulls, upBaseRates } from "../src/nulls.js";
 import { runSelftest } from "../src/selftest.js";
+import { recordRun, assertNotModified } from "../src/registry.js";
 import { breakEven, evPerTrade, requiredN, nToProve, holm, ALPHA } from "../src/stats.js";
 import { table, pct, signedPct, resultColumns } from "../src/report.js";
 
 // The owner does not trade below a 90% payout (2026-09-15), so every result
 // is judged against the break-even at 90% unless --payout says otherwise.
 const PAYOUT = 0.90;
+// Screen size is fixed for every hypothesis (owner's decision, 2026-09-15):
+// enough trades to detect a true 70% edge. Sizing from each hypothesis's own
+// prediction let an honest 53% claim demand 144,000 trades and never be killed.
+const SCREEN_EDGE = 0.70;
+const REGISTRY = fileURLToPath(new URL("../../research/registry.jsonl", import.meta.url));
 const LEDGER = fileURLToPath(new URL("../../research/holdout-ledger.jsonl", import.meta.url));
 const GAPS_FILE = fileURLToPath(new URL("../../research/verified-gaps.json", import.meta.url));
 // Seam breaks the owner has checked on the platform chart. See research/verified-gaps.json.
@@ -157,6 +163,12 @@ const commands = {
     console.log(`${hyp.meta.id} — ${hyp.meta.title || ""}\n${hyp.meta.statement}\n`);
     console.log(`${holdout ? "HOLDOUT" : "TRAIN"} window: ${holdout ? "from" : "before"} ${new Date(cutoff).toISOString()}. Payout ${pct(payout, 0)} → break-even ${pct(breakEven(payout))}.`);
 
+    // A run counts as a screen only on its own terms: the protocol payout, its
+    // declared expiries, clean data, the train window. Anything else is a
+    // what-if: shown, but not registered and given no verdict.
+    const whatIf = !holdout && (flags.payout !== undefined || flags.expiry !== undefined || !!flags["include-failing"]);
+    if (!holdout && !whatIf) assertNotModified(REGISTRY, hyp.meta.id, hyp.sourceHash);
+
     const lk = checkNoLookahead(hyp, ds, { expiry: expiries[0], window, samples: 300 });
     if (lk.mismatches.length) {
       console.log(`\nLOOK-AHEAD CHECK FAILED: ${lk.mismatches.length}/${lk.checked} sampled decisions changed when future bars were removed or were not repeatable.`);
@@ -178,23 +190,36 @@ const commands = {
     }
     if (!rows.length) { console.log("The hypothesis took no trades."); return; }
 
-    const adj = holm(rows.map(r => r.pValue));
-    const need = requiredN({ p1: hyp.meta.predictedRate, p0: breakEven(payout), tests: rows.length });
-    rows.forEach((r, i) => {
-      r.holmP = adj[i];
+    const fmtP = p => p < 1e-4 ? p.toExponential(1) : p.toFixed(4);
+    const cols = extra => [{ label: "Cell", key: "name" }, { label: "Fires", get: r => pct(r.fireRate), align: "right" }, ...resultColumns, ...extra];
+
+    if (holdout) {
+      // One pre-declared confirmation, not a screen: no family to correct over.
+      rows.forEach(r => { r.verdict = r.pValue < ALPHA ? "CONFIRMED" : "NOT CONFIRMED"; });
+      console.log(table(rows, cols([{ label: "p", get: r => fmtP(r.pValue), align: "right" }, { label: "Verdict", key: "verdict" }])));
+      return;
+    }
+    if (whatIf) {
+      console.log(table(rows, cols([{ label: "p (uncorrected)", get: r => fmtP(r.pValue), align: "right" }])));
+      console.log("\nWHAT-IF run (--payout, --expiry or --include-failing given): not registered, no verdict.");
+      return;
+    }
+
+    const cells = rows.map(r => ({ cell: r.name, decided: r.decided, wins: r.wins, pValue: r.pValue, datasetHash: ds.hash }));
+    const family = recordRun(REGISTRY, { hypothesisId: hyp.meta.id, sourceHash: hyp.sourceHash, datasetHash: ds.hash, payout, cutoff, cells });
+    const adj = holm(family.map(c => c.pValue));
+    const need = requiredN({ p1: SCREEN_EDGE, p0: breakEven(payout), tests: family.length });
+    rows.forEach(r => {
+      r.holmP = adj[family.findIndex(c => c.hypothesisId === hyp.meta.id && c.cell === r.name)];
       r.verdict = r.holmP < ALPHA ? "SURVIVES"
         : r.decided >= need ? "KILL"
         : `needs ${need - r.decided} more`;
     });
-    console.log(table(rows, [
-      { label: "Cell", key: "name" },
-      { label: "Fires", get: r => pct(r.fireRate), align: "right" },
-      ...resultColumns,
-      { label: "Holm p", get: r => r.holmP < 1e-4 ? r.holmP.toExponential(1) : r.holmP.toFixed(4), align: "right" },
-      { label: "Verdict", key: "verdict" }
-    ]));
-    console.log(`\nScreen size for predicted ${pct(hyp.meta.predictedRate, 0)} across ${rows.length} cell(s): ${need} decided trades (80% power, Holm family).`);
-    console.log(`Hurdle per cell = max(break-even, matched null). A cell SURVIVES only if its Holm-adjusted p < ${ALPHA}.`);
+    console.log(table(rows, cols([{ label: "Holm p", get: r => fmtP(r.holmP), align: "right" }, { label: "Verdict", key: "verdict" }])));
+    const ids = new Set(family.map(c => c.hypothesisId));
+    console.log(`\nRegistered. Holm family: ${family.length} cell(s) across ${ids.size} hypothesis(es).`);
+    console.log(`Screen size: ${need} decided trades per cell — enough to detect a true ${pct(SCREEN_EDGE, 0)} edge with 80% power in this family. (Predicted ${pct(hyp.meta.predictedRate, 0)} is recorded, not used.)`);
+    console.log(`Hurdle per cell = max(break-even, matched null). SURVIVES only if Holm-adjusted p < ${ALPHA}. Log the result in research/SCREEN_LOG.md.`);
   }
 };
 

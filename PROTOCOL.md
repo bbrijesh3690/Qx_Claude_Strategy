@@ -84,12 +84,35 @@ hypothesis's own CALL/PUT mix, on its own bars. It is what exposed 60.9% as a
 mirage when always-CALL scored 56.5% on the same bars.
 
 A cell is **killed** once it has at least the screen size of decided trades
-(from `predictedRate`, 80% power, Holm family) and still hasn't survived.
+and still hasn't survived.
+
+**Screen size is fixed at a 70% minimum edge (owner's decision, 2026-09-15).**
+It is the number of decided trades needed to detect a true 70% edge against
+break-even, with 80% power, Holm-corrected over the whole family. It is the
+same for every hypothesis. `predictedRate` is recorded but does not set it.
+
+The first version sized each screen from the hypothesis's own prediction.
+An honest 53% claim then needed 144,000 trades, so it could never be
+killed, and the kill budget meant nothing. A consequence of the fixed size:
+a real edge well below 70% will usually be killed. That is intended, because
+it is below what is worth trading here.
+
+**The Holm family is every cell ever screened**, recorded in
+`research/registry.jsonl` by the harness. Screening ideas one at a time does
+not make them uncorrected. The screen size grows as the family grows.
 
 ## Rules that cannot bend
 
 - **A hypothesis is frozen once run.** Any change to `decide` or `meta` means a
-  new id, which counts as a new test.
+  new id, which counts as a new test. The registry enforces this by source
+  hash.
+- **Commit the hypothesis file before screening it**, so git history shows the
+  rule existed before its result.
+- **A run with `--payout`, `--expiry` or `--include-failing` is a what-if.** It is
+  not registered and gets no verdict.
+- **Nothing learned from the train data goes back to an idea source**
+  (a model, a forum, intuition) to generate new hypotheses to screen on that
+  same data. New ideas prompted by results are screened on a new capture.
 - **No tuning on the train window after seeing results.** A threshold picked
   from the results is a new hypothesis, and it gets screened on data it hasn't
   seen.
