@@ -4,6 +4,29 @@
 | :--- | :--- | :--- | :--- |
 | **v0.1.0** | `v0.1.0-frozen` (pending) | Phase 0 harness: capture, integrity, settlement, stats, planted-edge selftest | Harness verified on synthetic data; **awaiting a real capture that passes integrity** |
 
+## v0.1.1 — capture diagnostics
+
+The first real session exported nine files, and every one was empty
+(`tabs: 0, framesSeen: 0`). The extension only wrote to storage after it saw
+a frame, so "no frames" and "frames arrived but the save failed" looked the
+same. The export gave no way to tell which link was broken.
+
+- `page-hook.js` sends counters every 2s: sockets, messages, binary frames,
+  parse errors, candle lists found, and the socket.io event names (never
+  message contents).
+- `capture.js` now writes to storage every 3s even when nothing is captured,
+  keeps the text of any storage error, and answers the popup directly by
+  message, so diagnosing no longer depends on storage working.
+- `core.js` keeps up to 8 rejected-frame samples: the reason, the non-numeric
+  tokens, and the first two raw candles. Numeric `key=value` tokens are left
+  out, since they are ids.
+- The popup names the first pipeline stage that came up empty. It asks before
+  exporting an empty file and has a **Copy diagnostics** button.
+- The tap now rejects object-form candles with a non-numeric high or low,
+  where it previously let them through.
+
+No change to attribution, validation, settlement or scoring. Tests: 25/25.
+
 ## v0.1.0 — Phase 0 harness
 
 No strategy exists in this version.

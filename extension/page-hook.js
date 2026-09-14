@@ -19,6 +19,15 @@
   if (window.__QX_CAPTURE_HOOK__) return;
   window.__QX_CAPTURE_HOOK__ = true;
 
+  // Counters only — no content. Lets the popup say which stage is empty:
+  // no sockets (hook installed too late: reload the tab), sockets but no
+  // candle lists (chart history not loading, or the frame format moved),
+  // candle lists but nothing accepted (attribution or validation).
+  const stats = { installedAt: Date.now(), sockets: 0, messages: 0, binary: 0, parseErrors: 0, historyLists: 0, lastHistoryAt: null, events: [] };
+  setInterval(() => {
+    window.postMessage({ type: "QX_CAPTURE_HOOK_STATS", payload: stats }, window.location.origin);
+  }, 2000);
+
   function toMs(t) {
     const n = Number(t);
     if (!Number.isFinite(n)) return NaN;
@@ -35,7 +44,7 @@
       const c = item.close ?? item.c;
       if (t === undefined || o === undefined || c === undefined || h === undefined || l === undefined) return null;
       const r = { time: toMs(t), open: parseFloat(o), high: parseFloat(h), low: parseFloat(l), close: parseFloat(c) };
-      return Number.isFinite(r.time) && !isNaN(r.open) && !isNaN(r.close) ? r : null;
+      return Number.isFinite(r.time) && !isNaN(r.open) && !isNaN(r.close) && !isNaN(r.high) && !isNaN(r.low) ? r : null;
     }
     if (Array.isArray(item) && item.length >= 5) {
       // Quotex native order: [time, open, close, high, low]
@@ -109,14 +118,22 @@
   }
 
   function handleIncoming(raw) {
+    stats.messages++;
     try {
       const str = typeof raw === "string" ? raw : new TextDecoder().decode(raw);
+      // socket.io event names only ("history/list/v2"), never payloads —
+      // if candle lists stop being found, this shows what the feed calls them now
+      const ev = /^\d*-?\["([^"]{1,40})"/.exec(str);
+      if (ev && stats.events.length < 40 && stats.events.indexOf(ev[1]) === -1) stats.events.push(ev[1]);
       const b1 = str.indexOf("{"), b2 = str.indexOf("[");
       const start = b1 === -1 ? b2 : (b2 === -1 ? b1 : Math.min(b1, b2));
       if (start === -1) return;
-      const parsed = JSON.parse(str.substring(start));
+      let parsed;
+      try { parsed = JSON.parse(str.substring(start)); } catch (_) { stats.parseErrors++; return; }
       const candles = deepSearch(parsed);
       if (!candles) return;
+      stats.historyLists++;
+      stats.lastHistoryAt = Date.now();
       window.postMessage({
         type: "QX_CAPTURE_HISTORY",
         payload: {
@@ -132,10 +149,11 @@
   const OrigWS = window.WebSocket;
   window.WebSocket = function (...args) {
     const ws = new OrigWS(...args);
+    stats.sockets++;
     ws.addEventListener("message", (ev) => {
       if (typeof ev.data === "string") handleIncoming(ev.data);
-      else if (ev.data instanceof Blob) ev.data.text().then(handleIncoming, () => {});
-      else if (ev.data instanceof ArrayBuffer) handleIncoming(ev.data);
+      else if (ev.data instanceof Blob) { stats.binary++; ev.data.text().then(handleIncoming, () => {}); }
+      else if (ev.data instanceof ArrayBuffer) { stats.binary++; handleIncoming(ev.data); }
     });
     return ws;
   };

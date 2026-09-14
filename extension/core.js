@@ -167,19 +167,36 @@
     const stats = {
       framesSeen: 0, framesAccepted: 0,
       dropped: { none: 0, ambiguous: 0, invalid: 0, merge: 0 },
-      invalidReasons: {}, mergeReasons: {}, unknownSymbols: {}
+      invalidReasons: {}, mergeReasons: {}, unknownSymbols: {},
+      rejectSamples: []
     };
+
+    // The first few rejected frames, reduced to what diagnosis needs: the
+    // reason, the frame's non-numeric tokens (where a symbol would be) and
+    // the first two raw candles (which show the timestamp format).
+    // Numeric key=value tokens are left out — they are ids, not symbols.
+    function sample(reason, pkt) {
+      if (stats.rejectSamples.length >= 8) return;
+      stats.rejectSamples.push({
+        reason,
+        prefix: typeof (pkt && pkt.prefix) === "string" ? pkt.prefix.slice(0, 48) : null,
+        tokens: ((pkt && pkt.tokens) || []).filter(t => typeof t === "string" && t.indexOf("=") === -1).slice(0, 12),
+        bars: Array.isArray(pkt && pkt.candles) ? pkt.candles.length : null,
+        firstCandles: Array.isArray(pkt && pkt.candles) ? pkt.candles.slice(0, 2) : null
+      });
+    }
 
     function ingest(pkt) {
       stats.framesSeen++;
       const att = attribute(pkt && pkt.tokens, pkt && pkt.prefix);
       for (const u of att.unknown || []) stats.unknownSymbols[u] = (stats.unknownSymbols[u] || 0) + 1;
-      if (att.status !== "ok") { stats.dropped[att.status]++; return { accepted: false, reason: att.status }; }
+      if (att.status !== "ok") { stats.dropped[att.status]++; sample(att.status, pkt); return { accepted: false, reason: att.status }; }
 
       const v = validateCandles(pkt.candles);
       if (!v.ok) {
         stats.dropped.invalid++;
         stats.invalidReasons[v.reason] = (stats.invalidReasons[v.reason] || 0) + 1;
+        sample(v.reason, pkt);
         return { accepted: false, reason: v.reason };
       }
 
@@ -190,6 +207,7 @@
         cur.rejectedBars += m.rejected;
         stats.dropped.merge++;
         stats.mergeReasons[m.reason] = (stats.mergeReasons[m.reason] || 0) + 1;
+        sample(m.reason, pkt);
         series.set(key, cur);
         return { accepted: false, reason: m.reason, symbol: cur.symbol };
       }

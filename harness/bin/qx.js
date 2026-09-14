@@ -79,6 +79,12 @@ const commands = {
   integrity({ pos }) {
     if (!pos[0]) die("usage: integrity <dataset.json>");
     const ds = loadDataset(pos[0]);
+    if (!ds.series.length) {
+      const s = ds.captureStats || {};
+      console.log(`EMPTY: ${pos[0]} contains no series (frames seen: ${s.framesSeen ?? "?"}, capturing tabs: ${s.tabs ?? "?"}).`);
+      console.log("Nothing was captured. Open the extension popup on the Quotex tab — its status line names the stage that is empty.");
+      process.exit(1);
+    }
     const rep = checkDataset(ds);
     console.log(`Dataset ${pos[0]}  sha256 ${ds.hash.slice(0, 16)}  exported ${ds.exportedAt || "?"}\n`);
     console.log(table(rep.perSeries, [

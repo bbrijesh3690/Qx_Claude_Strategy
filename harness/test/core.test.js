@@ -85,6 +85,14 @@ test("store: ingest, drop reasons, snapshot round-trip", () => {
   assert.equal(snap.series.EURUSD_otc.candles.length, 50);
   assert.equal(snap.series.EURUSD_otc.matchMode, "symbol");
 
+  // rejected frames leave a diagnosis sample, without numeric id tokens
+  assert.equal(snap.stats.rejectSamples.length, 2);
+  assert.deepEqual(snap.stats.rejectSamples[0].tokens, ["result"]);
+  const withId = core.createStore();
+  withId.ingest({ tokens: ["uid=4821", "history/list"], prefix: "", candles: bars(10) });
+  assert.deepEqual(withId.snapshot().stats.rejectSamples[0].tokens, ["history/list"]);
+  assert.equal(withId.snapshot().stats.rejectSamples[0].firstCandles.length, 2);
+
   const again = core.createStore();
   again.restore(snap);
   assert.deepEqual(again.snapshot().series, snap.series);

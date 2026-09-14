@@ -4,22 +4,28 @@
 <meta charset="utf-8">
 <title>QX Capture</title>
 <style>
-  body { font: 12px system-ui, sans-serif; margin: 0; padding: 12px; width: 340px; color: #111; }
+  body { font: 12px system-ui, sans-serif; margin: 0; padding: 12px; width: 380px; color: #111; }
   h1 { font-size: 13px; margin: 0 0 8px; }
+  #status { font-weight: 600; margin-bottom: 6px; }
   table { width: 100%; border-collapse: collapse; margin: 8px 0; }
   td, th { text-align: left; padding: 2px 4px; border-bottom: 1px solid #eee; }
   td.n { text-align: right; font-variant-numeric: tabular-nums; }
   .muted { color: #666; }
-  button { font: inherit; padding: 6px 10px; margin-right: 6px; }
-  #list { max-height: 260px; overflow-y: auto; }
+  button { font: inherit; padding: 6px 10px; margin: 4px 6px 0 0; }
+  #list { max-height: 220px; overflow-y: auto; }
+  details { margin-top: 8px; }
+  #diag { max-height: 200px; overflow: auto; background: #f6f6f6; padding: 6px; font: 10px ui-monospace, monospace; white-space: pre-wrap; word-break: break-all; }
 </style>
 </head>
 <body>
-  <h1>QX Capture <span class="muted">v0.1.0</span></h1>
-  <div id="summary" class="muted">Loading…</div>
+  <h1>QX Capture <span class="muted">v0.1.1</span></h1>
+  <div id="status">Checking…</div>
+  <div id="summary" class="muted"></div>
   <div id="list"></div>
   <button id="export">Export dataset</button>
+  <button id="copy">Copy diagnostics</button>
   <button id="clear">Clear</button>
+  <details><summary class="muted">Diagnostics</summary><pre id="diag"></pre></details>
   <p class="muted">Read-only. Nothing leaves this browser; data is cleared when the browser closes.</p>
   <script src="core.js"></script>
   <script src="popup.js"></script>
