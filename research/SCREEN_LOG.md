@@ -4,10 +4,17 @@ Every hypothesis run, including every one that dies. See `PROTOCOL.md`.
 The screen size is a fixed 70% minimum edge; Holm covers every registered
 cell (`registry.jsonl`).
 
-**Consecutive kills: 0 / 10**
+**Consecutive kills: 1 / 10**
 
 | # | Id | Source | Registered | Dataset (sha256, 12) | Cells | Result (rate, CI, hurdle) | Verdict | Notes |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | h001-anchor-fade-4h | Fable 5.1 | 2026-09-15 (`9b63930`) | `23bd8f5c7f0b` | 15m · OTC | 43 W / 63 L = **40.6%** [31.7–50.1], hurdle 52.6% | **KILL** | 106 decided trades against a screen size of 62. Fires on 0.2% of bars, 62% CALL. Holm p 0.995. EV −22.9% per trade. |
+
+### Notes on kill #1
+
+- **The rate fell below 50%, not just below break-even.** P(≤ 43 wins of 106 | 50%) = 0.032, one-sided. That is marginal: the trades cluster in runs, so the effective sample is smaller than 106, and it was not the question being asked. It is **not** evidence for the opposite rule ("follow a 4-hour deviation").
+- **Under the protocol, "follow" is a new idea prompted by this result.** It may be registered, but it can only be screened on a capture that doesn't overlap this dataset (data after 2026-09-14 19:29 UTC). Screening it here would be the 19:00 mirage.
+- **For the mechanism:** a slow pull toward a reference strong enough to pay at 15m would have shown up as a rate above 50% at |z| ≥ 2.5. It did not.
 
 ## Proposed but not registered
 
