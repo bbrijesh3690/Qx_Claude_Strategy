@@ -2,10 +2,10 @@
 // QX research harness CLI.
 //
 //   node harness/bin/qx.js selftest
-//   node harness/bin/qx.js power     [--rate 0.75] [--payout 0.85] [--tests 20]
+//   node harness/bin/qx.js power     [--rate 0.75] [--payout 0.90] [--tests 20]
 //   node harness/bin/qx.js integrity <dataset.json>
-//   node harness/bin/qx.js nulls     <dataset.json> [--expiry 1,5,15] [--payout 0.85]
-//   node harness/bin/qx.js run       <hypothesis.js> <dataset.json> [--expiry 5] [--payout 0.85] [--holdout]
+//   node harness/bin/qx.js nulls     <dataset.json> [--expiry 1,5,15] [--payout 0.90]
+//   node harness/bin/qx.js run       <hypothesis.js> <dataset.json> [--expiry 5] [--payout 0.90] [--holdout]
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
 import { loadDataset } from "../src/data.js";
@@ -18,6 +18,9 @@ import { runSelftest } from "../src/selftest.js";
 import { breakEven, evPerTrade, requiredN, nToProve, holm, ALPHA } from "../src/stats.js";
 import { table, pct, signedPct, resultColumns } from "../src/report.js";
 
+// The owner does not trade below a 90% payout (2026-09-15), so every result
+// is judged against the break-even at 90% unless --payout says otherwise.
+const PAYOUT = 0.90;
 const LEDGER = fileURLToPath(new URL("../../research/holdout-ledger.jsonl", import.meta.url));
 const GAPS_FILE = fileURLToPath(new URL("../../research/verified-gaps.json", import.meta.url));
 // Seam breaks the owner has checked on the platform chart. See research/verified-gaps.json.
@@ -65,7 +68,7 @@ const commands = {
   },
 
   power({ flags }) {
-    const payout = num(flags.payout, 0.85);
+    const payout = num(flags.payout, PAYOUT);
     const tests = num(flags.tests, 20);
     const rates = flags.rate ? list(flags.rate) : [0.75, 0.70, 0.65, 0.60, 0.56];
     const be = breakEven(payout);
@@ -111,9 +114,9 @@ const commands = {
   },
 
   nulls({ pos, flags }) {
-    if (!pos[0]) die("usage: nulls <dataset.json> [--expiry 1,5,15] [--payout 0.85]");
+    if (!pos[0]) die("usage: nulls <dataset.json> [--expiry 1,5,15] [--payout 0.90]");
     const ds = loadDataset(pos[0]);
-    const payout = num(flags.payout, 0.85);
+    const payout = num(flags.payout, PAYOUT);
     const { include } = screenData(ds, flags);
     const cutoff = computeCutoff(ds, { include });
     const window = trainWindow(cutoff);
@@ -137,10 +140,10 @@ const commands = {
   },
 
   async run({ pos, flags }) {
-    if (!pos[0] || !pos[1]) die("usage: run <hypothesis.js> <dataset.json> [--expiry 5] [--payout 0.85] [--holdout]");
+    if (!pos[0] || !pos[1]) die("usage: run <hypothesis.js> <dataset.json> [--expiry 5] [--payout 0.90] [--holdout]");
     const hyp = await loadHypothesis(pos[0]);
     const ds = loadDataset(pos[1]);
-    const payout = num(flags.payout, 0.85);
+    const payout = num(flags.payout, PAYOUT);
     const expiries = list(flags.expiry, hyp.meta.expiries);
     const { include } = screenData(ds, flags);
     const cutoff = computeCutoff(ds, { include });

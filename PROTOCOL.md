@@ -6,15 +6,23 @@ exception at a time.
 
 ## The target and what it implies
 
-The goal is a **75% hit rate**. At an 85% payout (break-even 54.1%) that is
-+38.7% of stake per trade — and it is cheap to test:
+The goal is a **75% hit rate**.
+
+**Payout floor: 90%, set 2026-09-15.** The owner does not trade below it,
+so every result is judged against the break-even at 90%: **52.6%**. That is
+the harness default; use `--payout` only to ask a what-if question.
+In forward validation, a trade counts only if the asset showed ≥ 90% when it
+was entered.
+
+At a 90% payout, a 75% hit rate is +42.5% of stake per trade, and it is cheap
+to test:
 
 | True rate | Detect it, 1 test | Detect it, 20-test family |
 | :--- | ---: | ---: |
-| 75% | 41 | 80 |
-| 70% | 74 | 141 |
-| 65% | 159 | 304 |
-| 60% | 546 | 1,042 |
+| 75% | 37 | 71 |
+| 70% | 62 | 120 |
+| 65% | 125 | 239 |
+| 60% | 357 | 681 |
 
 (80% power, one-sided α = 0.025. `node harness/bin/qx.js power` regenerates this.)
 

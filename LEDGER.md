@@ -2,7 +2,26 @@
 
 | Version | Tag | Milestone | Status |
 | :--- | :--- | :--- | :--- |
-| **v0.1.3** | `v0.1.3-frozen` (pending owner approval) | Phase 0 harness complete: selftest 21/21, real capture 9/9 integrity, two captures agree 99.99% | Exit criterion met |
+| **v0.1.3** | `v0.1.3-frozen` | Phase 0 harness complete: selftest 21/21, real capture 9/9 integrity, two captures agree 99.99% | **Frozen 2026-09-15** at `83017bf`. ZIP: `Qx_Claude_Strategy_Frozen_Vault\Qx_Claude_Strategy-v0.1.3-frozen.zip` |
+
+## Frozen vault
+
+`Qx_Claude_Strategy_Frozen_Vault\` inside this folder holds one ZIP per frozen
+tag. Each is made with `git archive`, so it contains exactly the tracked files
+at the tag, never `data/`. The folder is git-ignored; the pushed tag is the
+remote copy.
+
+## v0.1.4 — 90% payout floor
+
+The owner does not trade below a 90% payout (2026-09-15). The harness now
+defaults to `--payout 0.90`, so the break-even is **52.6%** (it was 54.1% at
+85%). `PROTOCOL.md` records the floor, and the rule that a forward trade counts
+only if the asset showed at least 90% when it was entered.
+
+Screen sizes at 90% for a 75% hit rate: 37 decided trades for 1 test, 71 for a
+20-test family (41 and 80 at 85%).
+
+No change to capture, integrity, settlement or statistics.
 
 ## v0.1.3 — second capture: Phase 0 exit criterion met
 

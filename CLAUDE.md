@@ -81,5 +81,8 @@ Datasets go in `data/` (git-ignored).
   `extension/manifest.json` together.
 - Conventional commits naming the version: `feat: v0.1.1 <what>`.
 - Freeze milestones as `vX.Y.Z-frozen` tags, record them in `LEDGER.md`, and
-  mirror each as a ZIP in `E:\Qx\Brijesh\QX_Frozen_Vault\`.
+  mirror each as a ZIP in `Qx_Claude_Strategy_Frozen_Vault\` inside this
+  folder, made with `git archive` of the tag so it never contains `data/`.
+  The vault is git-ignored; the pushed tag is the remote copy.
+- Payout floor is 90% (owner's rule). It is the harness default; don't lower it.
 - After touching `extension/core.js` or anything in `harness/src/`: `npm test`.
