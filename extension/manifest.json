@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "QX Capture",
+  "version": "0.1.0",
+  "description": "Read-only, local-only capture of symbol-attributed 1m candle history for offline research.",
+  "permissions": ["storage"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "QX Capture" },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.quotex.com/*",
+        "*://*.qxbroker.com/*",
+        "*://*.qxplus.com/*",
+        "*://*.market-qx.pro/*",
+        "*://*.broker-qx.pro/*",
+        "*://*.quotex-market.com/*"
+      ],
+      "js": ["page-hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "*://*.quotex.com/*",
+        "*://*.qxbroker.com/*",
+        "*://*.qxplus.com/*",
+        "*://*.market-qx.pro/*",
+        "*://*.broker-qx.pro/*",
+        "*://*.quotex-market.com/*"
+      ],
+      "js": ["core.js", "capture.js"],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "//": "Lets the Node harness require core.js as CommonJS. Chrome ignores this file.",
+  "type": "commonjs"
+}
