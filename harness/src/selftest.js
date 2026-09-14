@@ -62,8 +62,23 @@ export function runSelftest() {
       const spliced = splice(a, b, (a[a.length - 1].close / b[0].open) * ratio);
       const r = checkDataset(makeDataset([{ symbol: "AUDJPY_otc", candles: spliced }]));
       const codes = r.perSeries[0].issues.map(i => i.code);
-      check(`splice at a ${((ratio - 1) * 100).toFixed(1)}% level offset is caught`, codes.includes("impossible_jump"), codes.join(",") || "no issues");
+      check(`splice at a ${((ratio - 1) * 100).toFixed(1)}% level offset is caught`, codes.includes("seam_break"), codes.join(",") || "no issues");
     }
+
+    // A genuine OTC shock candle: opens at the previous close, moves 3% inside
+    // its own body, and the series carries on from the new level. It is data,
+    // not a splice, and must not cost the series its place.
+    const base = randomWalk({ bars: 3000, seed: 306 });
+    const k = 1500, jump = 1.03;
+    const shocked = base.map((c, i) => {
+      if (i < k) return c;
+      if (i === k) return { time: c.time, open: base[k - 1].close, high: base[k - 1].close * jump * 1.0002, low: base[k - 1].close * 0.9999, close: base[k - 1].close * jump };
+      const f = (base[k - 1].close * jump) / base[k].close;
+      return { time: c.time, open: c.open * f, high: c.high * f, low: c.low * f, close: c.close * f };
+    });
+    const rs = checkDataset(makeDataset([{ symbol: "NZDUSD_otc", candles: shocked }])).perSeries[0];
+    const sc = rs.issues.map(i => i.code);
+    check("a genuine 3% shock candle is reported, not failed", rs.status !== "fail" && sc.includes("shock_bars"), sc.join(",") || "no issues");
 
     const shared = randomWalk({ bars: 400, seed: 304 });
     const other = randomWalk({ bars: 2000, seed: 305 });

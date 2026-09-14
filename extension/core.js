@@ -45,12 +45,39 @@
     return { id: base + quote + (otc ? "_otc" : ""), base, quote, otc };
   }
 
-  // Quotex does not always quote a pair in display order: "USD/BRL (OTC)"
-  // arrives as BRLUSD_otc. The id keeps the frame's own order, but two
-  // tokens naming the same pair in either order are one instrument.
+  // Two tokens naming the same pair in either order are one instrument, so
+  // identity is order-independent.
   function pairKey(sym) {
     const [a, b] = [sym.base, sym.quote].sort();
     return a + b + (sym.otc ? "_otc" : "");
+  }
+
+  // NAMES follow the feed's own order, except where the platform is
+  // verified to list the pair the other way round. Add an entry only with
+  // evidence; never infer from a naming convention (v0.1.2 tried that and
+  // renamed four pairs the platform lists exactly as the feed spells them).
+  //   BRLUSD -> USD/BRL (OTC): QX-Chart-Assistant v1.4.55 ledger; confirmed
+  //   by the owner against the platform, 2026-09-15.
+  // Prices are never touched: the chart shows the feed's numbers under
+  // the platform's name, so CALL/PUT mean the same thing either way.
+  const PLATFORM_NAMES = { BRLUSD: "USDBRL" };
+
+  function nameKey(sym) {
+    const feed = sym.base + sym.quote;
+    return (PLATFORM_NAMES[feed] || feed) + (sym.otc ? "_otc" : "");
+  }
+
+  // "USDBRL_otc" -> "USD/BRL (OTC)"
+  function displayName(key) {
+    const m = /^([A-Z]{3})([A-Z]{3})(_otc)?$/.exec(key);
+    return m ? `${m[1]}/${m[2]}${m[3] ? " (OTC)" : ""}` : key;
+  }
+
+  // Re-derive the canonical key for any stored key or feed symbol, so
+  // exports made before this naming rule load under the right name.
+  function canonicalKey(anySymbol) {
+    const s = parseSymbol(anySymbol);
+    return s ? nameKey(s) : anySymbol;
   }
 
   /* --------------------------------------------------------------
@@ -119,23 +146,48 @@
     return s[Math.floor(s.length / 2)];
   }
 
+  // Typical one-minute move of a series, from close to close.
+  function medianAbsReturn(candles) {
+    const rs = [];
+    for (let i = 1; i < candles.length; i++) {
+      if (candles[i].time - candles[i - 1].time !== MINUTE) continue;
+      const r = Math.abs(Math.log(candles[i].close / candles[i - 1].close));
+      if (r > 0) rs.push(r);
+    }
+    return rs.length ? median(rs) : 0;
+  }
+
+  // Largest open-vs-previous-close step that still counts as continuous.
+  // On a real feed the next bar opens at, or within a tick of, the last
+  // close (measured p99 on the first capture: 0.2–3 bp). A splice shows up
+  // exactly here; a genuine shock candle does not, because its move is
+  // inside the bar body.
+  function seamLimit(candles) {
+    return Math.max(0.0005, 15 * medianAbsReturn(candles));
+  }
+
   /* --------------------------------------------------------------
      mergeSeries(existing, incoming) -> { candles, rejected, reason? }
 
-     Two guards, both ported from v1.4.55:
-     1. A block whose price level sits >5% from the series it is being
-        merged into is refused WHOLE. Trimming only the seam would hide
-        the splice while keeping the foreign bars.
-     2. Where the two overlap in time, closes must agree. Disagreement
-        means one of them is not this instrument.
+     Every guard refuses the incoming block WHOLE. Trimming only the seam
+     would hide a splice while keeping the foreign bars.
+
+     1. Overlap: where the two share minutes, closes must agree.
+     2. Seam: where the block touches existing bars minute-to-minute, the
+        later bar must open where the earlier one closed.
+     3. Level: a block touching nothing must sit within 5% of the NEAREST
+        existing bar in time.
+
+     v0.1.1 compared a block against the median of the whole series. The
+     first real capture showed why that fails: OTC feeds contain 1–5%
+     one-minute shock candles, so a week of history drifts well beyond 5%
+     of its own median, and 50 genuine history pages were thrown away as
+     "foreign". Checks are now local to where the block joins.
      -------------------------------------------------------------- */
   function mergeSeries(existing, incoming) {
     const have = existing || [];
     const add = incoming || [];
     if (have.length >= 5 && add.length >= 5) {
-      const mh = median(have.map(c => c.close)), ma = median(add.map(c => c.close));
-      if (Math.abs(ma - mh) / mh > 0.05) return { candles: have, rejected: add.length, reason: "level_mismatch" };
-
       const byTime = new Map(have.map(c => [c.time, c]));
       let overlap = 0, disagree = 0;
       for (const c of add) {
@@ -148,6 +200,27 @@
       // older copy, so allow one disagreement.
       if (overlap >= 5 && disagree > 1 && disagree / overlap > 0.1) {
         return { candles: have, rejected: add.length, reason: "overlap_disagrees" };
+      }
+
+      const limit = seamLimit(have);
+      const first = add[0], last = add[add.length - 1];
+      const before = byTime.get(first.time - MINUTE);
+      const after = byTime.get(last.time + MINUTE);
+      const brokenSeam =
+        (before && !byTime.has(first.time) && Math.abs(Math.log(first.open / before.close)) > limit) ||
+        (after && !byTime.has(last.time) && Math.abs(Math.log(after.open / last.close)) > limit);
+      if (brokenSeam) return { candles: have, rejected: add.length, reason: "seam_mismatch" };
+
+      if (!overlap && !before && !after) {
+        let nearest = have[0], best = Infinity;
+        for (const c of have) {
+          const d = Math.min(Math.abs(c.time - first.time), Math.abs(c.time - last.time));
+          if (d < best) { best = d; nearest = c; }
+        }
+        const ref = Math.abs(nearest.time - first.time) <= Math.abs(nearest.time - last.time) ? first : last;
+        if (Math.abs(Math.log(ref.close / nearest.close)) > 0.05) {
+          return { candles: have, rejected: add.length, reason: "level_mismatch" };
+        }
       }
     }
     const map = new Map();
@@ -201,7 +274,7 @@
       }
 
       const key = pairKey(att.symbol);
-      const cur = series.get(key) || { symbol: att.symbol.id, otc: att.symbol.otc, matchMode: "symbol", candles: [], frames: 0, rejectedBars: 0 };
+      const cur = series.get(key) || { key: nameKey(att.symbol), symbol: att.symbol.id, otc: att.symbol.otc, matchMode: "symbol", candles: [], frames: 0, rejectedBars: 0 };
       const m = mergeSeries(cur.candles, v.candles);
       if (m.rejected) {
         cur.rejectedBars += m.rejected;
@@ -220,9 +293,9 @@
 
     function snapshot() {
       const out = {};
-      for (const [key, s] of series) {
-        out[key] = {
-          symbol: s.symbol, otc: s.otc, matchMode: s.matchMode, frames: s.frames, rejectedBars: s.rejectedBars,
+      for (const s of series.values()) {
+        out[s.key] = {
+          symbol: s.symbol, name: displayName(s.key), otc: s.otc, matchMode: s.matchMode, frames: s.frames, rejectedBars: s.rejectedBars,
           candles: s.candles.map(c => [c.time, c.open, c.high, c.low, c.close])
         };
       }
@@ -231,9 +304,11 @@
 
     function restore(snap) {
       if (!snap || !snap.series) return;
-      for (const [key, s] of Object.entries(snap.series)) {
-        series.set(key, {
-          symbol: s.symbol, otc: s.otc, matchMode: s.matchMode, frames: s.frames || 0, rejectedBars: s.rejectedBars || 0,
+      for (const [storedKey, s] of Object.entries(snap.series)) {
+        const sym = parseSymbol(storedKey);
+        if (!sym) continue;
+        series.set(pairKey(sym), {
+          key: nameKey(sym), symbol: s.symbol, otc: s.otc, matchMode: s.matchMode, frames: s.frames || 0, rejectedBars: s.rejectedBars || 0,
           candles: (s.candles || []).map(([time, open, high, low, close]) => ({ time, open, high, low, close }))
         });
       }
@@ -254,7 +329,7 @@
     }, meta || {}, { series: snap.series, captureStats: snap.stats });
   }
 
-  const api = { MINUTE, CODES, parseSymbol, pairKey, attribute, validateCandles, mergeSeries, createStore, buildDataset };
+  const api = { MINUTE, CODES, PLATFORM_NAMES, parseSymbol, pairKey, nameKey, canonicalKey, displayName, attribute, validateCandles, medianAbsReturn, seamLimit, mergeSeries, createStore, buildDataset };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.QXCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

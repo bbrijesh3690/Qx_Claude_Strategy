@@ -41,6 +41,12 @@ attribution, the splice guards, and the measurement rig.
 
 - **Attribution:** a frame is filed under the one symbol it names, or dropped.
   No price fallback. Six-letter tokens must be two known currency codes.
+- **Naming:** a series is named as the feed spells it, except for entries in
+  `PLATFORM_NAMES` (`core.js`). Add an entry only after checking it against
+  the platform, never from a naming convention. Prices are never inverted.
+- **Seams, not moves:** a splice is a bar that opens away from the previous
+  close. Big moves inside one bar are real OTC shocks: they are kept and
+  reported, never failed or dropped.
 - **Timeframe:** the tap does not floor timestamps; `validateCandles` refuses
   anything not strictly 1-minute.
 - **Settlement:** decided at the close of bar *i*; entry at bar *i+1*'s open;

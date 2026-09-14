@@ -1,6 +1,6 @@
 {
   "name": "qx-claude-strategy",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "description": "Research harness for screening binary-option hypotheses on symbol-attributed Quotex candle data.",
