@@ -3,3 +3,4 @@ data/
 *.zip
 qx_capture_*.json
 Qx_Claude_Strategy_Frozen_Vault/
+.claude/settings.local.json
